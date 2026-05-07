@@ -114,8 +114,16 @@ export class Mindlytics implements INodeType {
 
 		resourceMapping: {
 			async getTemplateFields(this: ILoadOptionsFunctions): Promise<ResourceMapperFields> {
-				const templateIdRaw = this.getCurrentNodeParameter('templateId') as IDataObject | undefined;
-				const templateId = (templateIdRaw?.value as string) || '';
+				// getCurrentNodeParameter returns the raw resourceLocator value
+				// which may be { value, mode } or just the string id
+				const raw = this.getCurrentNodeParameter('templateId');
+				let templateId = '';
+				if (typeof raw === 'string') {
+					templateId = raw;
+				} else if (raw && typeof raw === 'object') {
+					templateId = String((raw as IDataObject).value ?? '');
+				}
+
 				if (!templateId) {
 					return {
 						fields: [],
@@ -123,7 +131,15 @@ export class Mindlytics implements INodeType {
 					};
 				}
 
-				const components = await fetchTemplateComponents.call(this, templateId);
+				const template = await fetchTemplate.call(this, templateId);
+				if (!template) {
+					return {
+						fields: [],
+						emptyFieldsNotice: 'Could not load template — check your credentials and template selection',
+					};
+				}
+
+				const components = extractComponents(template);
 				const fields: ResourceMapperField[] = [];
 
 				// ── Header ───────────────────────────────────────────────────────
@@ -566,71 +582,83 @@ function extractFixedCollectionValues(
 	return (collection[groupKey] as IDataObject[]).map((v) => v.value as string);
 }
 
-async function fetchTemplateComponents(
+// Fetch the full raw template object from the backend, trying both individual and list endpoints.
+async function fetchTemplate(
 	this: ILoadOptionsFunctions,
 	templateId: string,
-): Promise<IDataObject[]> {
-	// Try the individual template endpoint first (may not be officially documented)
+): Promise<IDataObject | null> {
+	// 1. Try the individual template endpoint
 	try {
-		const response = await this.helpers.httpRequestWithAuthentication.call(
+		const res = await this.helpers.httpRequestWithAuthentication.call(
 			this,
 			'whatsappBusinessPlatformApi',
 			{ method: 'GET', url: `https://wbp-api.mindlytics.in/api/v1/templates/${templateId}`, json: true },
 		) as IDataObject;
-
-		const data = (response.data ?? response) as IDataObject;
+		const data = (res.data ?? res) as IDataObject;
 		const tmpl = (data.template ?? data) as IDataObject;
-		const parsed = parseComponentData(tmpl);
-		if (parsed.length) return parsed;
+		// Confirm it looks like a template (has id or componentData or components)
+		if (tmpl.id || tmpl.componentData || tmpl.components) return tmpl;
 	} catch {
-		// fall through to list approach
+		// fall through
 	}
 
-	// Fall back to the documented list endpoint and find by ID
-	const listResponse = await this.helpers.httpRequestWithAuthentication.call(
-		this,
-		'whatsappBusinessPlatformApi',
-		{ method: 'GET', url: 'https://wbp-api.mindlytics.in/api/v1/templates', qs: { limit: 500 }, json: true },
-	) as IDataObject;
-
-	const listData = (listResponse.data ?? listResponse) as IDataObject;
-	const templates = (listData.templates ?? []) as IDataObject[];
-	const found = templates.find((t) => t.id === templateId);
-	return found ? parseComponentData(found) : [];
+	// 2. Fall back to the documented list endpoint
+	try {
+		const res = await this.helpers.httpRequestWithAuthentication.call(
+			this,
+			'whatsappBusinessPlatformApi',
+			{ method: 'GET', url: 'https://wbp-api.mindlytics.in/api/v1/templates', qs: { limit: 500 }, json: true },
+		) as IDataObject;
+		const data = (res.data ?? res) as IDataObject;
+		const templates = (data.templates ?? []) as IDataObject[];
+		// Loose comparison to handle string/number ID mismatch
+		return templates.find((t) => String(t.id) === String(templateId)) ?? null;
+	} catch {
+		return null;
+	}
 }
 
-function parseComponentData(template: IDataObject): IDataObject[] {
-	// Format 1: top-level `components` array (WhatsApp standard)
-	if (Array.isArray(template.components)) {
-		return template.components as IDataObject[];
-	}
+// Extract a normalised components array from a raw template object.
+// Handles every known format the Mindlytics API may return.
+function extractComponents(template: IDataObject): IDataObject[] {
+	// Check all candidate source fields
+	for (const sourceKey of ['components', 'componentData']) {
+		let raw: unknown = template[sourceKey];
 
-	const cd = template.componentData;
-	if (!cd) return [];
-
-	// Format 2: componentData is already an array
-	if (Array.isArray(cd)) {
-		return cd as IDataObject[];
-	}
-
-	if (typeof cd !== 'object') return [];
-	const cdObj = cd as Record<string, unknown>;
-
-	// Format 3: componentData has a nested `components` array
-	if (Array.isArray(cdObj.components)) {
-		return cdObj.components as IDataObject[];
-	}
-
-	// Format 4: componentData is an object with named keys
-	// e.g. { header: { format: 'IMAGE' }, body: { text: '...' }, buttons: [...] }
-	const result: IDataObject[] = [];
-	for (const [key, val] of Object.entries(cdObj)) {
-		const typeKey = key.toUpperCase();
-		if (typeKey === 'BUTTONS' && Array.isArray(val)) {
-			result.push({ type: 'BUTTONS', buttons: val });
-		} else if (val && typeof val === 'object' && !Array.isArray(val)) {
-			result.push({ ...(val as IDataObject), type: typeKey });
+		// Unwrap JSON string (APIs sometimes store objects as stringified JSON)
+		if (typeof raw === 'string') {
+			try { raw = JSON.parse(raw); } catch { continue; }
 		}
+
+		if (!raw || typeof raw !== 'object') continue;
+
+		// Already an array of component objects
+		if (Array.isArray(raw)) {
+			return raw as IDataObject[];
+		}
+
+		const obj = raw as Record<string, unknown>;
+
+		// Nested components array: { components: [...] }
+		if (Array.isArray(obj.components)) {
+			return obj.components as IDataObject[];
+		}
+
+		// Named-key object: { header: {...}, body: {...}, buttons: [...] }
+		// Convert each key into a component object with a `type` field.
+		const result: IDataObject[] = [];
+		for (const [key, val] of Object.entries(obj)) {
+			const typeKey = key.toUpperCase();
+			if (!val) continue;
+			if (Array.isArray(val)) {
+				// Treat arrays as button lists
+				result.push({ type: typeKey, buttons: val });
+			} else if (typeof val === 'object') {
+				result.push({ ...(val as IDataObject), type: typeKey });
+			}
+		}
+		if (result.length) return result;
 	}
-	return result;
+
+	return [];
 }
