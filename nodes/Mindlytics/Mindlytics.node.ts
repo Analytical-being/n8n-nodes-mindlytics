@@ -106,6 +106,21 @@ export class Mindlytics implements INodeType {
 				}
 			},
 
+			async getTemplateNamedBodyVariableStatus(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+					try {
+						const components = await fetchTemplateComponents.call(this);
+						if (!components) return [{ name: 'No', value: 'no' }];
+
+						const body = components.find(
+							(c) => (c.type as string)?.toUpperCase() === 'BODY',
+						) as IDataObject | undefined;
+						const hasNamed = typeof body?.text === 'string' && /\{\{[a-zA-Z_]\w*\}\}/.test(body.text);
+						return [{ name: hasNamed ? 'Yes' : 'No', value: hasNamed ? 'yes' : 'no' }];
+					} catch {
+						return [{ name: 'No', value: 'no' }];
+					}
+				},
+
 			async getTemplateButtonVariableStatus(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				try {
 					const components = await fetchTemplateComponents.call(this);
@@ -301,9 +316,13 @@ async function handleMessage(
 		const templateId = this.getNodeParameter('templateId', i, '', { extractValue: true }) as string;
 		const headerType = this.getNodeParameter('headerType', i) as string;
 		const hasBodyVariables = this.getNodeParameter('hasBodyVariables', i) as string;
+		const hasNamedBodyVariables = this.getNodeParameter('hasNamedBodyVariables', i) as string;
 		const hasButtonVariables = this.getNodeParameter('hasButtonVariables', i) as string;
 		const bodyVariables = hasBodyVariables === 'yes'
 			? this.getNodeParameter('bodyVariables', i) as IDataObject
+			: {};
+		const namedBodyVariables = hasNamedBodyVariables === 'yes'
+			? this.getNodeParameter('namedBodyVariables', i) as IDataObject
 			: {};
 		const buttonVariables = hasButtonVariables === 'yes'
 			? this.getNodeParameter('buttonVariables', i) as IDataObject
@@ -328,6 +347,13 @@ async function handleMessage(
 
 		const bodyArr = extractFixedCollectionValues(bodyVariables, 'values');
 		if (bodyArr.length) parameters.body = bodyArr;
+
+		const namedBodyItems = (namedBodyVariables.values as IDataObject[]) ?? [];
+		if (namedBodyItems.length) {
+			parameters.namedBody = Object.fromEntries(
+				namedBodyItems.map((item) => [String(item.name ?? ''), String(item.value ?? '')]),
+			);
+		}
 
 		const buttonArr = extractFixedCollectionValues(buttonVariables, 'values');
 		if (buttonArr.length) parameters.buttons = buttonArr;

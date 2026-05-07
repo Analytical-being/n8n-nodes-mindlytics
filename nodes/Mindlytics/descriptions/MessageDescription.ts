@@ -169,6 +169,54 @@ export const MessageFields: INodeProperties[] = [
 		],
 	},
 
+	// ─── NAMED BODY VARIABLES ─────────────────────────────────────────────────
+	{
+		displayName: 'Has Named Body Variables Name or ID',
+		name: 'hasNamedBodyVariables',
+		type: 'options',
+		default: 'no',
+		description: 'Auto-detected from the selected template. Used for templates with named placeholders like {{email}} instead of {{1}}. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
+		typeOptions: {
+			loadOptionsMethod: 'getTemplateNamedBodyVariableStatus',
+			loadOptionsDependsOn: ['templateId'],
+		},
+	},
+	{
+		displayName: 'Named Body Variables',
+		name: 'namedBodyVariables',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		default: {},
+		description: 'Values for named placeholders like {{email}}, {{name}}, etc.',
+		displayOptions: {
+			show: { resource: ['message'], operation: ['sendTemplate'], hasNamedBodyVariables: ['yes'] },
+		},
+		options: [
+			{
+				name: 'values',
+				displayName: 'Variable',
+				values: [
+					{
+						displayName: 'Name',
+						name: 'name',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. email',
+						description: 'Placeholder name as it appears in the template (without curly braces)',
+					},
+					{
+						displayName: 'Value',
+						name: 'value',
+						type: 'string',
+						default: '',
+						description: 'Replacement value for this placeholder',
+					},
+				],
+			},
+		],
+	},
+
 	// ─── BUTTON VARIABLES ────────────────────────────────────────────────────
 	{
 		displayName: 'Has Button Variables Name or ID',
