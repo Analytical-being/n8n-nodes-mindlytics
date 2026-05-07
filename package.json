@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-mindlytics",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "description": "N8N community node for Mindlytics – WhatsApp Business Platform",
   "keywords": [
     "n8n",
@@ -10,6 +10,10 @@
     "whatsapp-business",
     "messaging"
   ],
+  "author": {
+    "name": "Analytical-being",
+    "email": "harsh.trivedi1997@gmail.com"
+  },
   "license": "MIT",
   "homepage": "https://github.com/Analytical-being/n8n-nodes-mindlytics#readme",
   "repository": {
@@ -37,7 +41,7 @@
       "dist/nodes/Mindlytics/Mindlytics.node.js"
     ]
   },
-  "dependencies": {
+  "peerDependencies": {
     "n8n-workflow": "*"
   },
   "devDependencies": {
