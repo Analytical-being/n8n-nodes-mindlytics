@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-mindlytics",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "N8N community node for Mindlytics – WhatsApp Business Platform",
   "keywords": [
     "n8n",
