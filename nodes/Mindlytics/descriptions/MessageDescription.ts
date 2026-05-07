@@ -188,7 +188,7 @@ export const MessageFields: INodeProperties[] = [
 		type: 'fixedCollection',
 		typeOptions: { multipleValues: true },
 		default: {},
-		description: 'Values for named placeholders like {{email}}, {{name}}, etc.',
+		description: 'Values for named placeholders like {{email}}, {{name}}, etc',
 		displayOptions: {
 			show: { resource: ['message'], operation: ['sendTemplate'], hasNamedBodyVariables: ['yes'] },
 		},
