@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-mindlytics",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "N8N community node for Mindlytics – WhatsApp Business Platform",
   "keywords": [
     "n8n",
@@ -36,6 +36,9 @@
     "nodes": [
       "dist/nodes/Mindlytics/Mindlytics.node.js"
     ]
+  },
+  "dependencies": {
+    "n8n-workflow": "*"
   },
   "devDependencies": {
     "@typescript-eslint/parser": "^5.29.0",

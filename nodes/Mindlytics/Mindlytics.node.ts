@@ -22,16 +22,16 @@ import {
 	TemplateOperations,
 } from './descriptions';
 
-export class WhatsappBusinessPlatform implements INodeType {
+export class Mindlytics implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Mindlytics',
+		displayName: 'Mindlytics WhatsApp Marketing',
 		name: 'mindlytics',
 		icon: { light: 'file:mindlytics.svg', dark: 'file:mindlytics.dark.svg' },
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Send WhatsApp messages, manage contacts, templates, and broadcasts via Mindlytics',
-		defaults: { name: 'Mindlytics' },
+		defaults: { name: 'Mindlytics WhatsApp Marketing' },
 		inputs: ['main'],
 		outputs: ['main'],
 		credentials: [
