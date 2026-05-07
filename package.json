@@ -34,7 +34,7 @@
       "dist/credentials/WhatsappBusinessPlatformApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/WhatsappBusinessPlatform/WhatsappBusinessPlatform.node.js"
+      "dist/nodes/Mindlytics/Mindlytics.node.js"
     ]
   },
   "devDependencies": {

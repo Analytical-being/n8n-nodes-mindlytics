@@ -43,7 +43,7 @@ export const MessageFields: INodeProperties[] = [
 		type: 'resourceLocator',
 		default: { mode: 'list', value: '' },
 		required: true,
-		description: 'Contact to send the message to (must be ACTIVE and not opted out)',
+		description: 'Contact to send the message to. Use "By Phone Number" to send without a pre-existing contact — one will be created automatically.',
 		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
 		modes: [
 			{
@@ -57,6 +57,12 @@ export const MessageFields: INodeProperties[] = [
 				name: 'id',
 				type: 'string',
 				placeholder: 'e.g. contact_abc123',
+			},
+			{
+				displayName: 'By Phone Number',
+				name: 'phone',
+				type: 'string',
+				placeholder: '+919876543210',
 			},
 		],
 	},
@@ -86,11 +92,11 @@ export const MessageFields: INodeProperties[] = [
 
 	// ─── HEADER ───────────────────────────────────────────────────────────────
 	{
-		displayName: 'Header Type',
+		displayName: 'Header Type Name or ID',
 		name: 'headerType',
 		type: 'options',
 		default: 'none',
-		description: 'Fetched automatically from the selected template. Select a template first, then refresh this field.',
+		description: 'Fetched automatically from the selected template. Select a template first, then refresh this field. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
 		typeOptions: {
 			loadOptionsMethod: 'getTemplateHeaderType',
@@ -125,11 +131,11 @@ export const MessageFields: INodeProperties[] = [
 
 	// ─── BODY VARIABLES ───────────────────────────────────────────────────────
 	{
-		displayName: 'Has Body Variables',
+		displayName: 'Has Body Variables Name or ID',
 		name: 'hasBodyVariables',
 		type: 'options',
 		default: 'no',
-		description: 'Auto-detected from the selected template',
+		description: 'Auto-detected from the selected template. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
 		typeOptions: {
 			loadOptionsMethod: 'getTemplateBodyVariableStatus',
@@ -165,11 +171,11 @@ export const MessageFields: INodeProperties[] = [
 
 	// ─── BUTTON VARIABLES ────────────────────────────────────────────────────
 	{
-		displayName: 'Has Button Variables',
+		displayName: 'Has Button Variables Name or ID',
 		name: 'hasButtonVariables',
 		type: 'options',
 		default: 'no',
-		description: 'Auto-detected from the selected template',
+		description: 'Auto-detected from the selected template. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
 		typeOptions: {
 			loadOptionsMethod: 'getTemplateButtonVariableStatus',

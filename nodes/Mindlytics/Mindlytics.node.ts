@@ -32,8 +32,8 @@ export class WhatsappBusinessPlatform implements INodeType {
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Send WhatsApp messages, manage contacts, templates, and broadcasts via Mindlytics',
 		defaults: { name: 'Mindlytics' },
-		inputs: [NodeConnectionTypes.Main],
-		outputs: [NodeConnectionTypes.Main],
+		inputs: ['main'],
+		outputs: ['main'],
 		credentials: [
 			{
 				name: 'whatsappBusinessPlatformApi',
@@ -297,7 +297,7 @@ async function handleMessage(
 	}
 
 	if (operation === 'sendTemplate') {
-		const contactId = this.getNodeParameter('contactId', i, '', { extractValue: true }) as string;
+		const contactLocator = this.getNodeParameter('contactId', i) as IDataObject;
 		const templateId = this.getNodeParameter('templateId', i, '', { extractValue: true }) as string;
 		const headerType = this.getNodeParameter('headerType', i) as string;
 		const hasBodyVariables = this.getNodeParameter('hasBodyVariables', i) as string;
@@ -309,7 +309,13 @@ async function handleMessage(
 			? this.getNodeParameter('buttonVariables', i) as IDataObject
 			: {};
 
-		const body: IDataObject = { contactId, templateId };
+		const body: IDataObject = { templateId };
+		if (contactLocator.mode === 'phone') {
+			body.phoneNumber = contactLocator.value as string;
+		} else {
+			body.contactId = contactLocator.value as string;
+		}
+
 		const parameters: IDataObject = {};
 
 		if (headerType === 'text') {
@@ -317,7 +323,7 @@ async function handleMessage(
 			if (headerVariable) parameters.header = [headerVariable];
 		} else if (headerType === 'image' || headerType === 'video' || headerType === 'document') {
 			const headerMediaUrl = this.getNodeParameter('headerMediaUrl', i) as string;
-			if (headerMediaUrl) parameters.header = [headerMediaUrl];
+			if (headerMediaUrl) parameters.headerMediaUrl = headerMediaUrl;
 		}
 
 		const bodyArr = extractFixedCollectionValues(bodyVariables, 'values');
@@ -376,10 +382,30 @@ async function handleBroadcast(
 	this: IExecuteFunctions,
 	operation: string,
 	i: number,
-): Promise<IDataObject> {
+): Promise<IDataObject | IDataObject[]> {
 	if (operation === 'get') {
 		const broadcastId = this.getNodeParameter('broadcastId', i) as string;
 		return wbpApiRequest.call(this, 'GET', `/api/v1/broadcasts/${broadcastId}`);
+	}
+
+	if (operation === 'getAll') {
+		const returnAll = this.getNodeParameter('returnAll', i) as boolean;
+		const filters = this.getNodeParameter('filters', i) as IDataObject;
+		const qs = stripEmpty({
+			status: filters.status,
+			offset: filters.offset,
+		});
+
+		if (returnAll) {
+			return wbpApiRequestAllItems.call(this, 'GET', '/api/v1/broadcasts/', 'broadcasts', {}, qs);
+		}
+
+		const limit = this.getNodeParameter('limit', i) as number;
+		const response = (await wbpApiRequest.call(this, 'GET', '/api/v1/broadcasts/', {}, {
+			...qs,
+			limit,
+		})) as IDataObject;
+		return (response.broadcasts as IDataObject[]) ?? [];
 	}
 
 	if (operation === 'create') {

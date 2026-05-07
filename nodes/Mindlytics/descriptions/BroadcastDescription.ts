@@ -20,6 +20,12 @@ export const BroadcastOperations: INodeProperties[] = [
 				description: 'Get broadcast status and analytics',
 				action: 'Get a broadcast',
 			},
+			{
+				name: 'Get Many',
+				value: 'getAll',
+				description: 'List broadcast campaigns',
+				action: 'Get many broadcasts',
+			},
 		],
 		default: 'create',
 	},
@@ -34,6 +40,62 @@ export const BroadcastFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['broadcast'], operation: ['get'] } },
+	},
+
+	// ─── GET ALL ─────────────────────────────────────────────────────────────
+	{
+		displayName: 'Return All',
+		name: 'returnAll',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to return all results or only up to a given limit',
+		displayOptions: { show: { resource: ['broadcast'], operation: ['getAll'] } },
+	},
+	{
+		displayName: 'Limit',
+		name: 'limit',
+		type: 'number',
+		typeOptions: { minValue: 1 },
+		default: 50,
+		description: 'Max number of results to return',
+		displayOptions: {
+			show: { resource: ['broadcast'], operation: ['getAll'], returnAll: [false] },
+		},
+	},
+	{
+		displayName: 'Filters',
+		name: 'filters',
+		type: 'collection',
+		placeholder: 'Add Filter',
+		default: {},
+		displayOptions: { show: { resource: ['broadcast'], operation: ['getAll'] } },
+		options: [
+			{
+				displayName: 'Status',
+				name: 'status',
+				type: 'options',
+				options: [
+					{ name: 'Cancelled', value: 'CANCELLED' },
+					{ name: 'Draft', value: 'DRAFT' },
+					{ name: 'Failed', value: 'FAILED' },
+					{ name: 'Paused', value: 'PAUSED' },
+					{ name: 'Queued', value: 'QUEUED' },
+					{ name: 'Scheduled', value: 'SCHEDULED' },
+					{ name: 'Sending', value: 'SENDING' },
+					{ name: 'Sent', value: 'SENT' },
+				],
+				default: 'SENT',
+				description: 'Filter by broadcast status',
+			},
+			{
+				displayName: 'Offset',
+				name: 'offset',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 0,
+				description: 'Number of results to skip for manual pagination',
+			},
+		],
 	},
 
 	// ─── CREATE ──────────────────────────────────────────────────────────────
@@ -186,6 +248,7 @@ export const BroadcastFields: INodeProperties[] = [
 								displayName: 'Parameter Key',
 								name: 'apiKey',
 								type: 'string',
+								typeOptions: { password: true },
 								default: '',
 								placeholder: 'param_1',
 								description:
