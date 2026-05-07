@@ -570,13 +570,67 @@ async function fetchTemplateComponents(
 	this: ILoadOptionsFunctions,
 	templateId: string,
 ): Promise<IDataObject[]> {
-	const response = await this.helpers.httpRequestWithAuthentication.call(
+	// Try the individual template endpoint first (may not be officially documented)
+	try {
+		const response = await this.helpers.httpRequestWithAuthentication.call(
+			this,
+			'whatsappBusinessPlatformApi',
+			{ method: 'GET', url: `https://wbp-api.mindlytics.in/api/v1/templates/${templateId}`, json: true },
+		) as IDataObject;
+
+		const data = (response.data ?? response) as IDataObject;
+		const tmpl = (data.template ?? data) as IDataObject;
+		const parsed = parseComponentData(tmpl);
+		if (parsed.length) return parsed;
+	} catch {
+		// fall through to list approach
+	}
+
+	// Fall back to the documented list endpoint and find by ID
+	const listResponse = await this.helpers.httpRequestWithAuthentication.call(
 		this,
 		'whatsappBusinessPlatformApi',
-		{ method: 'GET', url: `https://wbp-api.mindlytics.in/api/v1/templates/${templateId}`, json: true },
+		{ method: 'GET', url: 'https://wbp-api.mindlytics.in/api/v1/templates', qs: { limit: 500 }, json: true },
 	) as IDataObject;
 
-	const data = (response.data ?? response) as IDataObject;
-	const template = (data.template ?? data) as IDataObject;
-	return (template.components ?? []) as IDataObject[];
+	const listData = (listResponse.data ?? listResponse) as IDataObject;
+	const templates = (listData.templates ?? []) as IDataObject[];
+	const found = templates.find((t) => t.id === templateId);
+	return found ? parseComponentData(found) : [];
+}
+
+function parseComponentData(template: IDataObject): IDataObject[] {
+	// Format 1: top-level `components` array (WhatsApp standard)
+	if (Array.isArray(template.components)) {
+		return template.components as IDataObject[];
+	}
+
+	const cd = template.componentData;
+	if (!cd) return [];
+
+	// Format 2: componentData is already an array
+	if (Array.isArray(cd)) {
+		return cd as IDataObject[];
+	}
+
+	if (typeof cd !== 'object') return [];
+	const cdObj = cd as Record<string, unknown>;
+
+	// Format 3: componentData has a nested `components` array
+	if (Array.isArray(cdObj.components)) {
+		return cdObj.components as IDataObject[];
+	}
+
+	// Format 4: componentData is an object with named keys
+	// e.g. { header: { format: 'IMAGE' }, body: { text: '...' }, buttons: [...] }
+	const result: IDataObject[] = [];
+	for (const [key, val] of Object.entries(cdObj)) {
+		const typeKey = key.toUpperCase();
+		if (typeKey === 'BUTTONS' && Array.isArray(val)) {
+			result.push({ type: 'BUTTONS', buttons: val });
+		} else if (val && typeof val === 'object' && !Array.isArray(val)) {
+			result.push({ ...(val as IDataObject), type: typeKey });
+		}
+	}
+	return result;
 }
