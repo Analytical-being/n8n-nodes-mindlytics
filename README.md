@@ -69,7 +69,8 @@ After installation, create a **Mindlytics API** credential:
 ## Links
 
 - [Mindlytics](https://mindlytics.in)
-- [API Reference](https://wbp-api.mindlytics.in/api/v1/openapi.json)
+- [Documentation](https://docs.mindlytics.in)
+- [OpenAPI Spec](https://wbp-api.mindlytics.in/api/v1/openapi.json)
 - [n8n Community Nodes docs](https://docs.n8n.io/integrations/community-nodes/)
 
 ## License
