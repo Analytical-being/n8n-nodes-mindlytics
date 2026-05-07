@@ -617,9 +617,7 @@ async function fetchTemplate(
 		) as IDataObject;
 		const data = (res.data ?? res) as IDataObject;
 		const tmpl = (data.template ?? data) as IDataObject;
-		// Only return if component data is actually present; otherwise fall through
-		// to the list endpoint which may include richer template objects.
-		if (tmpl.componentData !== undefined || tmpl.components !== undefined) return tmpl;
+		if (tmpl.id || tmpl.componentData || tmpl.components) return tmpl;
 	} catch {
 		// fall through
 	}
