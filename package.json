@@ -10,11 +10,11 @@
     "whatsapp-business",
     "messaging"
   ],
-  "license": "UNLICENSED",
-  "homepage": "https://mindlytics.in/",
+  "license": "MIT",
+  "homepage": "https://github.com/Analytical-being/n8n-nodes-mindlytics#readme",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/Analytical-being/n8n-nodes-mindlytics.git"
   },
   "main": "index.js",
   "scripts": {
