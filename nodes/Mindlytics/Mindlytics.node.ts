@@ -4,10 +4,11 @@ import {
 	ILoadOptionsFunctions,
 	INodeExecutionData,
 	INodeListSearchResult,
-	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	NodeConnectionTypes,
+	ResourceMapperField,
+	ResourceMapperFields,
 } from 'n8n-workflow';
 
 import { wbpApiRequest, wbpApiRequestAllItems } from './GenericFunctions';
@@ -66,79 +67,6 @@ export class Mindlytics implements INodeType {
 	};
 
 	methods = {
-		loadOptions: {
-			async getTemplateHeaderType(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const noneOption: INodePropertyOptions[] = [{ name: 'None', value: 'none' }];
-				try {
-					const components = await fetchTemplateComponents.call(this);
-					if (!components) return noneOption;
-
-					const header = components.find(
-						(c) => (c.type as string)?.toUpperCase() === 'HEADER',
-					) as IDataObject | undefined;
-					if (!header) return noneOption;
-
-					const formatMap: Record<string, INodePropertyOptions> = {
-						TEXT:     { name: 'Text',     value: 'text' },
-						IMAGE:    { name: 'Image',    value: 'image' },
-						VIDEO:    { name: 'Video',    value: 'video' },
-						DOCUMENT: { name: 'Document', value: 'document' },
-					};
-					const format = ((header.format as string) ?? '').toUpperCase();
-					return formatMap[format] ? [formatMap[format]] : noneOption;
-				} catch {
-					return noneOption;
-				}
-			},
-
-			async getTemplateBodyVariableStatus(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const components = await fetchTemplateComponents.call(this);
-					if (!components) return [{ name: 'No', value: 'no' }];
-
-					const body = components.find(
-						(c) => (c.type as string)?.toUpperCase() === 'BODY',
-					) as IDataObject | undefined;
-					const hasVars = typeof body?.text === 'string' && body.text.includes('{{');
-					return [{ name: hasVars ? 'Yes' : 'No', value: hasVars ? 'yes' : 'no' }];
-				} catch {
-					return [{ name: 'No', value: 'no' }];
-				}
-			},
-
-			async getTemplateNamedBodyVariableStatus(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-					try {
-						const components = await fetchTemplateComponents.call(this);
-						if (!components) return [{ name: 'No', value: 'no' }];
-
-						const body = components.find(
-							(c) => (c.type as string)?.toUpperCase() === 'BODY',
-						) as IDataObject | undefined;
-						const hasNamed = typeof body?.text === 'string' && /\{\{[a-zA-Z_]\w*\}\}/.test(body.text);
-						return [{ name: hasNamed ? 'Yes' : 'No', value: hasNamed ? 'yes' : 'no' }];
-					} catch {
-						return [{ name: 'No', value: 'no' }];
-					}
-				},
-
-			async getTemplateButtonVariableStatus(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				try {
-					const components = await fetchTemplateComponents.call(this);
-					if (!components) return [{ name: 'No', value: 'no' }];
-
-					const buttonsComponent = components.find(
-						(c) => (c.type as string)?.toUpperCase() === 'BUTTONS',
-					) as IDataObject | undefined;
-					const buttons = (buttonsComponent?.buttons ?? []) as IDataObject[];
-					const hasVars = buttons.some(
-						(b) => typeof b.url === 'string' && b.url.includes('{{'),
-					);
-					return [{ name: hasVars ? 'Yes' : 'No', value: hasVars ? 'yes' : 'no' }];
-				} catch {
-					return [{ name: 'No', value: 'no' }];
-				}
-			},
-		},
 		listSearch: {
 			async searchContacts(
 				this: ILoadOptionsFunctions,
@@ -181,6 +109,124 @@ export class Mindlytics implements INodeType {
 						value: t.id as string,
 					})),
 				};
+			},
+		},
+
+		resourceMapping: {
+			async getTemplateFields(this: ILoadOptionsFunctions): Promise<ResourceMapperFields> {
+				const templateIdRaw = this.getCurrentNodeParameter('templateId') as IDataObject | undefined;
+				const templateId = (templateIdRaw?.value as string) || '';
+				if (!templateId) {
+					return {
+						fields: [],
+						emptyFieldsNotice: 'Select a template above to see its variables',
+					};
+				}
+
+				const components = await fetchTemplateComponents.call(this, templateId);
+				const fields: ResourceMapperField[] = [];
+
+				// ── Header ───────────────────────────────────────────────────────
+				const header = components.find(
+					(c) => (c.type as string)?.toUpperCase() === 'HEADER',
+				) as IDataObject | undefined;
+
+				if (header) {
+					const format = ((header.format as string) ?? '').toUpperCase();
+					if (format === 'TEXT') {
+						const hasVar = typeof header.text === 'string' && header.text.includes('{{');
+						if (hasVar) {
+							fields.push({
+								id: 'header_text_var',
+								displayName: 'Header — Text Variable ({{1}})',
+								required: true,
+								defaultMatch: false,
+								display: true,
+								type: 'string',
+								canBeUsedToMatch: false,
+							});
+						}
+					} else if (format === 'IMAGE' || format === 'VIDEO' || format === 'DOCUMENT') {
+						const label = format.charAt(0) + format.slice(1).toLowerCase();
+						fields.push({
+							id: 'header_media_url',
+							displayName: `Header — ${label} URL`,
+							required: true,
+							defaultMatch: false,
+							display: true,
+							type: 'string',
+							canBeUsedToMatch: false,
+						});
+					}
+				}
+
+				// ── Body ─────────────────────────────────────────────────────────
+				const body = components.find(
+					(c) => (c.type as string)?.toUpperCase() === 'BODY',
+				) as IDataObject | undefined;
+
+				if (body) {
+					const bodyText = (body.text as string) ?? '';
+					const namedMatches = [...bodyText.matchAll(/\{\{([a-zA-Z_]\w*)\}\}/g)];
+
+					if (namedMatches.length) {
+						for (const match of namedMatches) {
+							fields.push({
+								id: `body_named_${match[1]}`,
+								displayName: `Body — {{${match[1]}}}`,
+								required: true,
+								defaultMatch: false,
+								display: true,
+								type: 'string',
+								canBeUsedToMatch: false,
+							});
+						}
+					} else {
+						const positionalNums = [
+							...new Set(
+								[...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((m) => parseInt(m[1], 10)),
+							),
+						].sort((a, b) => a - b);
+
+						for (const num of positionalNums) {
+							fields.push({
+								id: `body_${num}`,
+								displayName: `Body — {{${num}}}`,
+								required: true,
+								defaultMatch: false,
+								display: true,
+								type: 'string',
+								canBeUsedToMatch: false,
+							});
+						}
+					}
+				}
+
+				// ── Buttons ──────────────────────────────────────────────────────
+				const buttonsComp = components.find(
+					(c) => (c.type as string)?.toUpperCase() === 'BUTTONS',
+				) as IDataObject | undefined;
+
+				if (buttonsComp) {
+					const buttons = (buttonsComp.buttons ?? []) as IDataObject[];
+					let dynIdx = 1;
+					for (const btn of buttons) {
+						if (typeof btn.url === 'string' && btn.url.includes('{{')) {
+							fields.push({
+								id: `button_${dynIdx}`,
+								displayName: `Button ${dynIdx} — Dynamic URL Suffix`,
+								required: true,
+								defaultMatch: false,
+								display: true,
+								type: 'string',
+								canBeUsedToMatch: false,
+							});
+							dynIdx++;
+						}
+					}
+				}
+
+				return { fields };
 			},
 		},
 	};
@@ -314,19 +360,10 @@ async function handleMessage(
 	if (operation === 'sendTemplate') {
 		const contactLocator = this.getNodeParameter('contactId', i) as IDataObject;
 		const templateId = this.getNodeParameter('templateId', i, '', { extractValue: true }) as string;
-		const headerType = this.getNodeParameter('headerType', i) as string;
-		const hasBodyVariables = this.getNodeParameter('hasBodyVariables', i) as string;
-		const hasNamedBodyVariables = this.getNodeParameter('hasNamedBodyVariables', i) as string;
-		const hasButtonVariables = this.getNodeParameter('hasButtonVariables', i) as string;
-		const bodyVariables = hasBodyVariables === 'yes'
-			? this.getNodeParameter('bodyVariables', i) as IDataObject
-			: {};
-		const namedBodyVariables = hasNamedBodyVariables === 'yes'
-			? this.getNodeParameter('namedBodyVariables', i) as IDataObject
-			: {};
-		const buttonVariables = hasButtonVariables === 'yes'
-			? this.getNodeParameter('buttonVariables', i) as IDataObject
-			: {};
+		const templateVars = this.getNodeParameter('templateVariables', i) as {
+			value: Record<string, string | null> | null;
+		};
+		const vars = templateVars.value ?? {};
 
 		const body: IDataObject = { templateId };
 		if (contactLocator.mode === 'phone') {
@@ -337,25 +374,37 @@ async function handleMessage(
 
 		const parameters: IDataObject = {};
 
-		if (headerType === 'text') {
-			const headerVariable = this.getNodeParameter('headerVariable', i) as string;
-			if (headerVariable) parameters.header = [headerVariable];
-		} else if (headerType === 'image' || headerType === 'video' || headerType === 'document') {
-			const headerMediaUrl = this.getNodeParameter('headerMediaUrl', i) as string;
-			if (headerMediaUrl) parameters.headerMediaUrl = headerMediaUrl;
+		// Header text variable
+		if (vars.header_text_var) {
+			parameters.header = [vars.header_text_var];
 		}
 
-		const bodyArr = extractFixedCollectionValues(bodyVariables, 'values');
+		// Header media URL
+		if (vars.header_media_url) {
+			parameters.headerMediaUrl = vars.header_media_url;
+		}
+
+		// Positional body variables (body_1, body_2, …)
+		const bodyArr: string[] = [];
+		for (let n = 1; vars[`body_${n}`] !== undefined; n++) {
+			bodyArr.push(String(vars[`body_${n}`] ?? ''));
+		}
 		if (bodyArr.length) parameters.body = bodyArr;
 
-		const namedBodyItems = (namedBodyVariables.values as IDataObject[]) ?? [];
-		if (namedBodyItems.length) {
-			parameters.namedBody = Object.fromEntries(
-				namedBodyItems.map((item) => [String(item.name ?? ''), String(item.value ?? '')]),
-			);
+		// Named body variables (body_named_<name>)
+		const namedBody: Record<string, string> = {};
+		for (const [key, val] of Object.entries(vars)) {
+			if (key.startsWith('body_named_')) {
+				namedBody[key.slice('body_named_'.length)] = String(val ?? '');
+			}
 		}
+		if (Object.keys(namedBody).length) parameters.namedBody = namedBody;
 
-		const buttonArr = extractFixedCollectionValues(buttonVariables, 'values');
+		// Button dynamic URL suffixes (button_1, button_2, …)
+		const buttonArr: string[] = [];
+		for (let n = 1; vars[`button_${n}`] !== undefined; n++) {
+			buttonArr.push(String(vars[`button_${n}`] ?? ''));
+		}
 		if (buttonArr.length) parameters.buttons = buttonArr;
 
 		if (Object.keys(parameters).length) body.parameters = parameters;
@@ -519,11 +568,8 @@ function extractFixedCollectionValues(
 
 async function fetchTemplateComponents(
 	this: ILoadOptionsFunctions,
-): Promise<IDataObject[] | null> {
-	const templateIdRaw = this.getCurrentNodeParameter('templateId') as IDataObject | undefined;
-	const templateId = (templateIdRaw?.value as string) || '';
-	if (!templateId) return null;
-
+	templateId: string,
+): Promise<IDataObject[]> {
 	const response = await this.helpers.httpRequestWithAuthentication.call(
 		this,
 		'whatsappBusinessPlatformApi',
