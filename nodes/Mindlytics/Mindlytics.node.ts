@@ -142,27 +142,6 @@ export class Mindlytics implements INodeType {
 				const components = extractComponents(template);
 				const fields: ResourceMapperField[] = [];
 
-				// ── Diagnostic: surface raw structure when parsing yields nothing ──
-				if (components.length === 0) {
-					const keys = Object.keys(template).join(', ');
-					const raw = JSON.stringify(
-						template.componentData ?? template.components ?? '(neither field present)',
-					).slice(0, 400);
-					return {
-						fields: [
-							{
-								id: '_debug_template_structure',
-								displayName: `⚠ Could not detect variables. Template keys: [${keys}] | componentData/components value: ${raw}`,
-								required: false,
-								defaultMatch: false,
-								display: true,
-								type: 'string',
-								canBeUsedToMatch: false,
-							},
-						],
-					};
-				}
-
 				// ── Header ───────────────────────────────────────────────────────
 				const header = components.find(
 					(c) => (c.type as string)?.toUpperCase() === 'HEADER',
@@ -261,6 +240,28 @@ export class Mindlytics implements INodeType {
 							dynIdx++;
 						}
 					}
+				}
+
+				// ── Diagnostic: fires when template loaded but no variables detected ──
+				if (fields.length === 0) {
+					const templateKeys = Object.keys(template).join(', ');
+					const rawComponentSource = JSON.stringify(
+						template.componentData ?? template.components ?? '(neither field present)',
+					).slice(0, 500);
+					const parsedComponents = JSON.stringify(components).slice(0, 500);
+					return {
+						fields: [
+							{
+								id: '_debug',
+								displayName: `⚠ No variables detected. Template keys: [${templateKeys}] | raw componentData/components: ${rawComponentSource} | parsed components: ${parsedComponents}`,
+								required: false,
+								defaultMatch: false,
+								display: true,
+								type: 'string',
+								canBeUsedToMatch: false,
+							},
+						],
+					};
 				}
 
 				return { fields };
