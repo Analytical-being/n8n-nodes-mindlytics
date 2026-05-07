@@ -142,6 +142,27 @@ export class Mindlytics implements INodeType {
 				const components = extractComponents(template);
 				const fields: ResourceMapperField[] = [];
 
+				// ── Diagnostic: surface raw structure when parsing yields nothing ──
+				if (components.length === 0) {
+					const keys = Object.keys(template).join(', ');
+					const raw = JSON.stringify(
+						template.componentData ?? template.components ?? '(neither field present)',
+					).slice(0, 400);
+					return {
+						fields: [
+							{
+								id: '_debug_template_structure',
+								displayName: `⚠ Could not detect variables. Template keys: [${keys}] | componentData/components value: ${raw}`,
+								required: false,
+								defaultMatch: false,
+								display: true,
+								type: 'string',
+								canBeUsedToMatch: false,
+							},
+						],
+					};
+				}
+
 				// ── Header ───────────────────────────────────────────────────────
 				const header = components.find(
 					(c) => (c.type as string)?.toUpperCase() === 'HEADER',
@@ -596,8 +617,9 @@ async function fetchTemplate(
 		) as IDataObject;
 		const data = (res.data ?? res) as IDataObject;
 		const tmpl = (data.template ?? data) as IDataObject;
-		// Confirm it looks like a template (has id or componentData or components)
-		if (tmpl.id || tmpl.componentData || tmpl.components) return tmpl;
+		// Only return if component data is actually present; otherwise fall through
+		// to the list endpoint which may include richer template objects.
+		if (tmpl.componentData !== undefined || tmpl.components !== undefined) return tmpl;
 	} catch {
 		// fall through
 	}
