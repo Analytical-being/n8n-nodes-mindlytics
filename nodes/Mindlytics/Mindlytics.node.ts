@@ -114,153 +114,33 @@ export class Mindlytics implements INodeType {
 
 		resourceMapping: {
 			async getTemplateFields(this: ILoadOptionsFunctions): Promise<ResourceMapperFields> {
-				// getCurrentNodeParameter returns the raw resourceLocator value
-				// which may be { value, mode } or just the string id
 				const raw = this.getCurrentNodeParameter('templateId');
 				let templateId = '';
 				if (typeof raw === 'string') {
 					templateId = raw;
 				} else if (raw && typeof raw === 'object') {
-					templateId = String((raw as IDataObject).value ?? '');
+					const obj = raw as IDataObject;
+					templateId = String(obj.value ?? '');
 				}
-
+				// Also try getNodeParameter with extractValue as a fallback
 				if (!templateId) {
-					return {
-						fields: [],
-						emptyFieldsNotice: 'Select a template above to see its variables',
-					};
+					try {
+						const extracted = this.getNodeParameter('templateId', undefined, { extractValue: true });
+						if (extracted && typeof extracted === 'string') templateId = extracted;
+					} catch {}
 				}
+				if (!templateId) return { fields: [] };
 
 				const template = await fetchTemplate.call(this, templateId);
-				if (!template) {
-					return {
-						fields: [],
-						emptyFieldsNotice: 'Could not load template — check your credentials and template selection',
-					};
-				}
+				if (!template) return { fields: [] };
 
 				const components = extractComponents(template);
-				const fields: ResourceMapperField[] = [];
+				const fields = buildFields(components);
 
-				// ── Header ───────────────────────────────────────────────────────
-				const header = components.find(
-					(c) => (c.type as string)?.toUpperCase() === 'HEADER',
-				) as IDataObject | undefined;
-
-				if (header) {
-					const format = ((header.format as string) ?? '').toUpperCase();
-					if (format === 'TEXT') {
-						const hasVar = typeof header.text === 'string' && header.text.includes('{{');
-						if (hasVar) {
-							fields.push({
-								id: 'header_text_var',
-								displayName: 'Header — Text Variable ({{1}})',
-								required: true,
-								defaultMatch: false,
-								display: true,
-								type: 'string',
-								canBeUsedToMatch: false,
-							});
-						}
-					} else if (format === 'IMAGE' || format === 'VIDEO' || format === 'DOCUMENT') {
-						const label = format.charAt(0) + format.slice(1).toLowerCase();
-						fields.push({
-							id: 'header_media_url',
-							displayName: `Header — ${label} URL`,
-							required: true,
-							defaultMatch: false,
-							display: true,
-							type: 'string',
-							canBeUsedToMatch: false,
-						});
-					}
-				}
-
-				// ── Body ─────────────────────────────────────────────────────────
-				const body = components.find(
-					(c) => (c.type as string)?.toUpperCase() === 'BODY',
-				) as IDataObject | undefined;
-
-				if (body) {
-					const bodyText = (body.text as string) ?? '';
-					const namedMatches = [...bodyText.matchAll(/\{\{([a-zA-Z_]\w*)\}\}/g)];
-
-					if (namedMatches.length) {
-						for (const match of namedMatches) {
-							fields.push({
-								id: `body_named_${match[1]}`,
-								displayName: `Body — {{${match[1]}}}`,
-								required: true,
-								defaultMatch: false,
-								display: true,
-								type: 'string',
-								canBeUsedToMatch: false,
-							});
-						}
-					} else {
-						const positionalNums = [
-							...new Set(
-								[...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((m) => parseInt(m[1], 10)),
-							),
-						].sort((a, b) => a - b);
-
-						for (const num of positionalNums) {
-							fields.push({
-								id: `body_${num}`,
-								displayName: `Body — {{${num}}}`,
-								required: true,
-								defaultMatch: false,
-								display: true,
-								type: 'string',
-								canBeUsedToMatch: false,
-							});
-						}
-					}
-				}
-
-				// ── Buttons ──────────────────────────────────────────────────────
-				const buttonsComp = components.find(
-					(c) => (c.type as string)?.toUpperCase() === 'BUTTONS',
-				) as IDataObject | undefined;
-
-				if (buttonsComp) {
-					const buttons = (buttonsComp.buttons ?? []) as IDataObject[];
-					let dynIdx = 1;
-					for (const btn of buttons) {
-						if (typeof btn.url === 'string' && btn.url.includes('{{')) {
-							fields.push({
-								id: `button_${dynIdx}`,
-								displayName: `Button ${dynIdx} — Dynamic URL Suffix`,
-								required: true,
-								defaultMatch: false,
-								display: true,
-								type: 'string',
-								canBeUsedToMatch: false,
-							});
-							dynIdx++;
-						}
-					}
-				}
-
-				// ── Diagnostic: fires when template loaded but no variables detected ──
 				if (fields.length === 0) {
-					const templateKeys = Object.keys(template).join(', ');
-					const rawComponentSource = JSON.stringify(
-						template.componentData ?? template.components ?? '(neither field present)',
-					).slice(0, 500);
-					const parsedComponents = JSON.stringify(components).slice(0, 500);
 					return {
-						fields: [
-							{
-								id: '_debug',
-								displayName: `⚠ No variables detected. Template keys: [${templateKeys}] | raw componentData/components: ${rawComponentSource} | parsed components: ${parsedComponents}`,
-								required: false,
-								defaultMatch: false,
-								display: true,
-								type: 'string',
-								canBeUsedToMatch: false,
-							},
-						],
+						fields: [],
+						emptyFieldsNotice: 'No variables needed — proceed to send.',
 					};
 				}
 
@@ -604,6 +484,52 @@ function extractFixedCollectionValues(
 	return (collection[groupKey] as IDataObject[]).map((v) => v.value as string);
 }
 
+// Build ResourceMapperFields from a parsed components array.
+function buildFields(components: IDataObject[]): ResourceMapperField[] {
+	const fields: ResourceMapperField[] = [];
+
+	const header = components.find((c) => (c.type as string)?.toUpperCase() === 'HEADER') as IDataObject | undefined;
+	if (header) {
+		const format = ((header.format as string) ?? '').toUpperCase();
+		if (format === 'TEXT' && typeof header.text === 'string' && header.text.includes('{{')) {
+			fields.push({ id: 'header_text_var', displayName: 'Header — Text Variable ({{1}})', required: true, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: false });
+		} else if (format === 'IMAGE' || format === 'VIDEO' || format === 'DOCUMENT') {
+			const label = format.charAt(0) + format.slice(1).toLowerCase();
+			fields.push({ id: 'header_media_url', displayName: `Header — ${label} URL`, required: true, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: false });
+		}
+	}
+
+	const body = components.find((c) => (c.type as string)?.toUpperCase() === 'BODY') as IDataObject | undefined;
+	if (body) {
+		const bodyText = (body.text as string) ?? '';
+		const namedMatches = [...bodyText.matchAll(/\{\{([a-zA-Z_]\w*)\}\}/g)];
+		if (namedMatches.length) {
+			for (const m of namedMatches) {
+				fields.push({ id: `body_named_${m[1]}`, displayName: `Body — {{${m[1]}}}`, required: true, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: false });
+			}
+		} else {
+			const nums = [...new Set([...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((m) => parseInt(m[1], 10)))].sort((a, b) => a - b);
+			for (const num of nums) {
+				fields.push({ id: `body_${num}`, displayName: `Body — {{${num}}}`, required: true, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: false });
+			}
+		}
+	}
+
+	const buttonsComp = components.find((c) => (c.type as string)?.toUpperCase() === 'BUTTONS') as IDataObject | undefined;
+	if (buttonsComp) {
+		const buttons = (buttonsComp.buttons ?? []) as IDataObject[];
+		let dynIdx = 1;
+		for (const btn of buttons) {
+			if (typeof btn.url === 'string' && btn.url.includes('{{')) {
+				fields.push({ id: `button_${dynIdx}`, displayName: `Button ${dynIdx} — Dynamic URL Suffix`, required: true, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: false });
+				dynIdx++;
+			}
+		}
+	}
+
+	return fields;
+}
+
 // Fetch the full raw template object from the backend, trying both individual and list endpoints.
 async function fetchTemplate(
 	this: ILoadOptionsFunctions,
@@ -618,9 +544,9 @@ async function fetchTemplate(
 		) as IDataObject;
 		const data = (res.data ?? res) as IDataObject;
 		const tmpl = (data.template ?? data) as IDataObject;
-		if (tmpl.id || tmpl.componentData || tmpl.components) return tmpl;
+		if (tmpl.componentData !== undefined || tmpl.components !== undefined) return tmpl;
 	} catch {
-		// fall through
+		// fall through to list endpoint
 	}
 
 	// 2. Fall back to the documented list endpoint
@@ -628,11 +554,10 @@ async function fetchTemplate(
 		const res = await this.helpers.httpRequestWithAuthentication.call(
 			this,
 			'whatsappBusinessPlatformApi',
-			{ method: 'GET', url: 'https://wbp-api.mindlytics.in/api/v1/templates', qs: { limit: 500 }, json: true },
+			{ method: 'GET', url: 'https://wbp-api.mindlytics.in/api/v1/templates', qs: { limit: 100 }, json: true },
 		) as IDataObject;
 		const data = (res.data ?? res) as IDataObject;
 		const templates = (data.templates ?? []) as IDataObject[];
-		// Loose comparison to handle string/number ID mismatch
 		return templates.find((t) => String(t.id) === String(templateId)) ?? null;
 	} catch {
 		return null;
@@ -665,17 +590,21 @@ function extractComponents(template: IDataObject): IDataObject[] {
 			return obj.components as IDataObject[];
 		}
 
-		// Named-key object: { header: {...}, body: {...}, buttons: [...] }
-		// Convert each key into a component object with a `type` field.
+		// Mindlytics API format: numeric-indexed object { "0": {type:"HEADER",...}, "1": {type:"BODY",...} }
+		// Each value already carries its own `type` field — just extract the values as an array.
+		const keys = Object.keys(obj);
+		if (keys.length > 0 && keys.every((k) => /^\d+$/.test(k))) {
+			return Object.values(obj) as IDataObject[];
+		}
+
+		// Named-key fallback: { header: {...}, body: {...}, buttons: [...] }
 		const result: IDataObject[] = [];
 		for (const [key, val] of Object.entries(obj)) {
-			const typeKey = key.toUpperCase();
 			if (!val) continue;
 			if (Array.isArray(val)) {
-				// Treat arrays as button lists
-				result.push({ type: typeKey, buttons: val });
+				result.push({ type: key.toUpperCase(), buttons: val });
 			} else if (typeof val === 'object') {
-				result.push({ ...(val as IDataObject), type: typeKey });
+				result.push({ ...(val as IDataObject), type: key.toUpperCase() });
 			}
 		}
 		if (result.length) return result;

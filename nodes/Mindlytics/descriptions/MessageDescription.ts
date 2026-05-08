@@ -72,7 +72,7 @@ export const MessageFields: INodeProperties[] = [
 		type: 'resourceLocator',
 		default: { mode: 'list', value: '' },
 		required: true,
-		description: 'Approved template to send',
+		description: 'Approved template to send. After selecting, click ↻ in the "Template Variables" section below to load its variables.',
 		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
 		modes: [
 			{
@@ -90,14 +90,14 @@ export const MessageFields: INodeProperties[] = [
 		],
 	},
 
-	// ─── TEMPLATE VARIABLES (auto-generated from template structure) ──────────
+	// ─── TEMPLATE VARIABLES ───────────────────────────────────────────────────
 	{
 		displayName: 'Template Variables',
 		name: 'templateVariables',
 		type: 'resourceMapper',
 		default: { mappingMode: 'defineBelow', value: null },
 		noDataExpression: true,
-		description: 'Variable values required by the selected template. Fields are auto-detected from the template — select a template first, then click Refresh.',
+		description: 'Click ↻ Refresh to detect variables from the selected template',
 		displayOptions: { show: { resource: ['message'], operation: ['sendTemplate'] } },
 		typeOptions: {
 			resourceMapper: {
@@ -105,7 +105,8 @@ export const MessageFields: INodeProperties[] = [
 				mode: 'add',
 				fieldWords: { singular: 'variable', plural: 'variables' },
 				addAllFields: true,
-				noFieldsError: 'This template has no variable placeholders',
+				supportAutoMap: false,
+				noFieldsError: 'Select a template above, then click ↻ Refresh to load its variables',
 			},
 		},
 	},
