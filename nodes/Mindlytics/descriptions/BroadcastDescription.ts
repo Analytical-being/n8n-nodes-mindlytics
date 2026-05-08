@@ -194,6 +194,26 @@ export const BroadcastFields: INodeProperties[] = [
 			},
 		],
 	},
+	// ─── TEMPLATE VARIABLES (auto-detected) ─────────────────────────────────
+	{
+		displayName: 'Template Variables',
+		name: 'templateVariables',
+		type: 'resourceMapper',
+		default: { mappingMode: 'defineBelow', value: null },
+		noDataExpression: true,
+		description: 'Click ↻ Refresh to detect variables from the selected template',
+		displayOptions: { show: { resource: ['broadcast'], operation: ['create'] } },
+		typeOptions: {
+			resourceMapper: {
+				resourceMapperMethod: 'getTemplateFields',
+				mode: 'add',
+				fieldWords: { singular: 'variable', plural: 'variables' },
+				addAllFields: true,
+				supportAutoMap: false,
+				noFieldsError: 'Select a template above, then click ↻ Refresh to load its variables',
+			},
+		},
+	},
 	{
 		displayName: 'Additional Options',
 		name: 'additionalOptions',
@@ -202,28 +222,6 @@ export const BroadcastFields: INodeProperties[] = [
 		default: {},
 		displayOptions: { show: { resource: ['broadcast'], operation: ['create'] } },
 		options: [
-			{
-				displayName: 'Body Parameters',
-				name: 'bodyParams',
-				type: 'fixedCollection',
-				typeOptions: { multipleValues: true },
-				default: {},
-				description: 'Static values for {{1}}, {{2}}, … body placeholders (in order)',
-				options: [
-					{
-						name: 'values',
-						displayName: 'Values',
-						values: [
-							{
-								displayName: 'Value',
-								name: 'value',
-								type: 'string',
-								default: '',
-							},
-						],
-					},
-				],
-			},
 			{
 				displayName: 'Broadcast Name',
 				name: 'name',
@@ -269,28 +267,6 @@ export const BroadcastFields: INodeProperties[] = [
 								type: 'string',
 								default: '',
 								description: 'Value to use when the contact field is empty',
-							},
-						],
-					},
-				],
-			},
-			{
-				displayName: 'Header Parameters',
-				name: 'headerParams',
-				type: 'fixedCollection',
-				typeOptions: { multipleValues: true },
-				default: {},
-				description: 'Static values for header placeholders (e.g. image URL)',
-				options: [
-					{
-						name: 'values',
-						displayName: 'Values',
-						values: [
-							{
-								displayName: 'Value',
-								name: 'value',
-								type: 'string',
-								default: '',
 							},
 						],
 					},

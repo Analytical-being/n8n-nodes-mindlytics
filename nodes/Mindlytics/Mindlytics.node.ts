@@ -423,14 +423,30 @@ async function handleBroadcast(
 		if (options.name) body.name = options.name;
 		if (options.scheduledAt) body.scheduledAt = options.scheduledAt;
 
-		const bodyArr = extractFixedCollectionValues(options.bodyParams as IDataObject, 'values');
-		const headerArr = extractFixedCollectionValues(options.headerParams as IDataObject, 'values');
-		if (bodyArr.length || headerArr.length) {
-			const parameters: IDataObject = {};
-			if (bodyArr.length) parameters.body = bodyArr;
-			if (headerArr.length) parameters.header = headerArr;
-			body.parameters = parameters;
+		// Read template variables from the resourceMapper
+		const templateVars = this.getNodeParameter('templateVariables', i) as {
+			value: Record<string, string | null> | null;
+		};
+		const vars = templateVars?.value ?? {};
+
+		const parameters: IDataObject = {};
+
+		if (vars.header_text_var) parameters.header = [vars.header_text_var];
+		if (vars.header_media_url) parameters.header = [vars.header_media_url];
+
+		const bodyArr: string[] = [];
+		for (let n = 1; vars[`body_${n}`] !== undefined; n++) {
+			bodyArr.push(String(vars[`body_${n}`] ?? ''));
 		}
+		if (bodyArr.length) parameters.body = bodyArr;
+
+		const buttonArr: string[] = [];
+		for (let n = 1; vars[`button_${n}`] !== undefined; n++) {
+			buttonArr.push(String(vars[`button_${n}`] ?? ''));
+		}
+		if (buttonArr.length) parameters.buttons = buttonArr;
+
+		if (Object.keys(parameters).length) body.parameters = parameters;
 
 		const mappingsRaw = options.contactFieldMappings as IDataObject | undefined;
 		if (mappingsRaw?.mappings) {
@@ -474,14 +490,6 @@ function parseJsonField(value: unknown): IDataObject {
 		}
 	}
 	return {};
-}
-
-function extractFixedCollectionValues(
-	collection: IDataObject | undefined,
-	groupKey: string,
-): string[] {
-	if (!collection || !collection[groupKey]) return [];
-	return (collection[groupKey] as IDataObject[]).map((v) => v.value as string);
 }
 
 // Build ResourceMapperFields from a parsed components array.
