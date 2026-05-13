@@ -6,7 +6,6 @@ import {
 	INodeListSearchResult,
 	INodeType,
 	INodeTypeDescription,
-	NodeConnectionTypes,
 	ResourceMapperField,
 	ResourceMapperFields,
 } from 'n8n-workflow';
@@ -127,7 +126,9 @@ export class Mindlytics implements INodeType {
 					try {
 						const extracted = this.getNodeParameter('templateId', undefined, { extractValue: true });
 						if (extracted && typeof extracted === 'string') templateId = extracted;
-					} catch {}
+					} catch (_) {
+						// extractValue fallback is best-effort; failure here is non-fatal
+					}
 				}
 				if (!templateId) return { fields: [] };
 
